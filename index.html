@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#020617">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Mi Tablero Personal Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bgDark: '#0f172a',
+            cardDark: '#1e293b',
+            borderDark: '#334155'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    .custom-scroll::-webkit-scrollbar { display: none; }
+    .custom-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans pb-20 antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- BARRA DE USUARIO, RESPALDO & AUTENTICACIÓN -->
+  <header class="sticky top-0 z-30 bg-slate-950/85 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+    <div class="max-w-xl mx-auto flex items-center justify-between gap-2">
+      <!-- Estado de sincronización -->
+      <div class="flex items-center gap-2 min-w-0">
+        <div id="statusDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0"></div>
+        <span id="statusText" class="text-xs text-slate-400 truncate">Modo local</span>
+      </div>
+
+      <!-- Acciones: Exportar/Importar JSON + Google Auth -->
+      <div class="flex items-center gap-1.5">
+        <button id="btnExport" title="Exportar respaldo JSON" class="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-xs transition active:scale-95">
+          ⬇ JSON
+        </button>
+        <label title="Importar respaldo JSON" class="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg text-xs transition active:scale-95 cursor-pointer">
+          ⬆
+          <input type="file" id="inputImport" accept=".json" class="hidden">
+        </label>
+
+        <!-- Controles de cuenta Firebase -->
+        <div id="authContainer" class="flex items-center gap-2 ml-1">
+          <button id="btnLogin" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-xs font-medium rounded-lg shadow-sm transition active:scale-95">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12.24 10.285V14.4h6.806c-.275 1.765-2.056 5.174-6.806 5.174-4.095 0-7.439-3.389-7.439-7.574s3.344-7.574 7.439-7.574c2.33 0 3.891.989 4.785 1.849l3.254-3.138C18.189 1.186 15.479 0 12.24 0c-6.635 0-12 5.365-12 12s5.365 12 12 12c6.926 0 11.52-4.869 11.52-11.726 0-.788-.085-1.39-.189-1.989H12.24z"/>
+            </svg>
+            <span>Entrar</span>
+          </button>
+
+          <div id="userProfile" class="hidden flex items-center gap-2">
+            <img id="userAvatar" src="" class="w-7 h-7 rounded-full border border-slate-700 object-cover" alt="Avatar">
+            <button id="btnLogout" class="text-xs text-slate-400 hover:text-rose-400 transition p-1" title="Cerrar sesión">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="max-w-xl mx-auto px-4 pt-5 space-y-5">
+
+    <!-- 1. SALUDO Y RELOJ -->
+    <section class="bg-gradient-to-br from-slate-900 to-slate-800/80 p-5 rounded-2xl border border-slate-800/80 shadow-lg">
+      <div class="flex items-baseline justify-between">
+        <div>
+          <h1 id="greeting" class="text-xl font-bold tracking-tight text-white">Hola</h1>
+          <p id="currentDate" class="text-xs text-slate-400 capitalize mt-0.5">--</p>
+        </div>
+        <div class="text-right">
+          <div id="clock" class="text-2xl font-mono font-bold tracking-wider text-indigo-400">00:00</div>
+          <span id="dayResetBadge" class="text-[10px] text-emerald-400 font-medium">Reinicio diario activo</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. HÁBITOS DEL DÍA (CON RACHAS Y AUTO-RESET DIARIO) -->
+    <section class="bg-slate-900/90 p-5 rounded-2xl border border-slate-800/80 shadow-sm space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-base">🔥</span>
+          <h2 class="text-sm font-semibold tracking-wide uppercase text-slate-300">Hábitos de Hoy</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="habitCountBadge" class="text-xs text-slate-400 font-mono">0/0</span>
+          <span id="habitProgressText" class="text-xs font-mono font-bold text-emerald-400">0%</span>
+        </div>
+      </div>
+
+      <!-- Barra de progreso -->
+      <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+        <div id="habitProgressBar" class="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-300 w-0"></div>
+      </div>
+
+      <!-- Grid de Hábitos -->
+      <div id="habitsList" class="grid grid-cols-2 gap-2.5 pt-1"></div>
+
+      <!-- Agregar Hábito -->
+      <form id="formNewHabit" class="flex gap-2 pt-2 border-t border-slate-800">
+        <input type="text" id="inputHabitEmoji" value="⚡" maxlength="2" class="w-11 bg-slate-800 border border-slate-700 rounded-lg text-center text-sm py-2 focus:outline-none focus:border-indigo-500">
+        <input type="text" id="inputHabitName" placeholder="Nuevo hábito diario..." required class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 text-sm py-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg text-sm font-medium transition active:scale-95">+</button>
+      </form>
+    </section>
+
+    <!-- 3. TAREAS PENDIENTES (CON PRIORIDAD Y LIMPIEZA RÁPIDA) -->
+    <section class="bg-slate-900/90 p-5 rounded-2xl border border-slate-800/80 shadow-sm space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-base">✅</span>
+          <h2 class="text-sm font-semibold tracking-wide uppercase text-slate-300">Tareas Pendientes</h2>
+          <span id="taskCount" class="text-xs bg-slate-800 text-indigo-300 px-2 py-0.5 rounded-full font-mono">0</span>
+        </div>
+        <button id="btnClearCompletedTasks" class="hidden text-[11px] text-slate-400 hover:text-rose-400 transition">
+          Limpiar hechas
+        </button>
+      </div>
+
+      <div id="tasksList" class="space-y-2"></div>
+
+      <!-- Formulario nueva tarea con selector de prioridad -->
+      <form id="formNewTask" class="flex gap-2 pt-2 border-t border-slate-800">
+        <select id="inputTaskPriority" class="bg-slate-800 border border-slate-700 rounded-lg px-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+          <option value="normal">🔵 Normal</option>
+          <option value="high">🔴 Alta</option>
+        </select>
+        <input type="text" id="inputTaskText" placeholder="Nueva tarea..." required class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 text-sm py-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-lg text-sm font-medium transition active:scale-95">+</button>
+      </form>
+    </section>
+
+    <!-- 4. BLOC DE NOTAS MULTI-PESTAÑA + CALCULADORA RÁPIDA -->
+    <section class="bg-slate-900/90 p-5 rounded-2xl border border-slate-800/80 shadow-sm space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-base">📝</span>
+          <h2 class="text-sm font-semibold tracking-wide uppercase text-slate-300">Bloc Rápido</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="noteSavedStatus" class="text-[11px] text-slate-500">Al día</span>
+          <button id="btnCalcNote" title="Resuelve la operación matemática de la línea actual" class="text-[11px] bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-800/60 px-2 py-0.5 rounded-md transition active:scale-95">
+            = Resolver
+          </button>
+          <button id="btnCopyNote" title="Copiar nota actual" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-0.5 rounded-md transition active:scale-95">
+            Copiar
+          </button>
+        </div>
+      </div>
+
+      <!-- Pestañas del Bloc -->
+      <div class="flex gap-1.5 bg-slate-950/60 p-1 rounded-xl border border-slate-800/80">
+        <button data-tab="general" class="note-tab flex-1 py-1.5 text-xs font-medium rounded-lg transition">📌 General</button>
+        <button data-tab="medidas" class="note-tab flex-1 py-1.5 text-xs font-medium rounded-lg transition">📐 Medidas / Cuentas</button>
+        <button data-tab="ideas" class="note-tab flex-1 py-1.5 text-xs font-medium rounded-lg transition">💡 Ideas</button>
+      </div>
+
+      <textarea id="quickNotes" rows="5" placeholder="Escribe notas, medidas (ej. 1.20 * 0.85 * 450) y presiona '= Resolver'..." class="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-y font-mono leading-relaxed"></textarea>
+    </section>
+
+    <!-- 5. CONTROL RÁPIDO DE GASTOS / MOVIMIENTOS -->
+    <section class="bg-slate-900/90 p-5 rounded-2xl border border-slate-800/80 shadow-sm space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-base">💰</span>
+          <h2 class="text-sm font-semibold tracking-wide uppercase text-slate-300">Caja Rápida</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="financeBalance" class="text-sm font-mono font-bold text-emerald-400">$0.00</span>
+          <button id="btnClearFinance" class="text-[11px] text-slate-500 hover:text-rose-400 transition" title="Reiniciar movimientos">Limpiar</button>
+        </div>
+      </div>
+
+      <div id="expensesList" class="space-y-1.5 max-h-40 overflow-y-auto custom-scroll"></div>
+
+      <form id="formNewExpense" class="flex gap-1.5 pt-2 border-t border-slate-800">
+        <select id="inputExpenseType" class="bg-slate-800 border border-slate-700 rounded-lg px-2 text-xs font-bold text-slate-200 focus:outline-none">
+          <option value="out">➖ Gasto</option>
+          <option value="in">➕ Ingreso</option>
+        </select>
+        <input type="text" id="inputExpenseDesc" placeholder="Concepto..." required class="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-lg px-2.5 text-sm py-2 text-slate-200 focus:outline-none focus:border-indigo-500">
+        <input type="number" id="inputExpenseAmount" step="any" placeholder="$0" required class="w-24 bg-slate-800 border border-slate-700 rounded-lg px-2.5 text-sm py-2 text-slate-200 font-mono focus:outline-none focus:border-indigo-500">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition active:scale-95">+</button>
+      </form>
+    </section>
+
+  </main>
+
+  <!-- FIREBASE MODULAR SCRIPTS (v10) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+    import { 
+      getAuth, 
+      signInWithPopup, 
+      GoogleAuthProvider, 
+      onAuthStateChanged, 
+      signOut 
+    } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+    import { 
+      initializeFirestore, 
+      persistentLocalCache, 
+      doc, 
+      onSnapshot, 
+      setDoc 
+    } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+    /**************************************************************
+     * 1. CONFIGURACIÓN DE FIREBASE (Con detección de modo local)
+     **************************************************************/
+    const firebaseConfig = {
+      apiKey: "AIzaSy_TU_API_KEY",
+      authDomain: "TU_PROYECTO.firebaseapp.com",
+      projectId: "TU_PROYECTO",
+      storageBucket: "TU_PROYECTO.appspot.com",
+      messagingSenderId: "000000000000",
+      appId: "1:000000000000:web:000000000000"
+    };
+
+    const isFirebaseConfigured = !firebaseConfig.apiKey.includes("TU_API_KEY");
+    let auth = null;
+    let db = null;
+    let provider = null;
+
+    if (isFirebaseConfigured) {
+      try {
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        provider = new GoogleAuthProvider();
+        db = initializeFirestore(app, { localCache: persistentLocalCache() });
+      } catch (e) {
+        console.warn("Firebase no inicializado, operando en modo local:", e);
+      }
+    }
+
+    /**************************************************************
+     * 2. UTILIDADES DE FECHA, SANITIZACIÓN Y RACHAS
+     **************************************************************/
+    function getTodayISO() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function escapeHTML(str = '') {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function calculateStreak(logs = {}) {
+      let streak = 0;
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+
+      const todayISO = getTodayISO();
+      if (!logs[todayISO]) {
+        d.setDate(d.getDate() - 1);
+      }
+
+      while (true) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const iso = `${y}-${m}-${day}`;
+        if (logs[iso]) {
+          streak++;
+          d.setDate(d.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      return streak;
+    }
+
+    /**************************************************************
+     * 3. ESTADO LOCAL Y MIGRACIÓN AUTOMÁTICA DE DATOS (v1 -> v2)
+     **************************************************************/
+    const STORAGE_KEY = 'app_data_v2';
+    const DEFAULT_DATA = {
+      habits: [
+        { id: '1', emoji: '💧', name: 'Tomar 2L agua', logs: {} },
+        { id: '2', emoji: '💻', name: 'Commit / Código', logs: {} }
+      ],
+      tasks: [
+        { id: '1', text: 'Revisar pendientes del día', priority: 'normal', done: false }
+      ],
+      notes: {
+        general: '',
+        medidas: '',
+        ideas: ''
+      },
+      expenses: []
+    };
+
+    function loadInitialData() {
+      const rawV2 = localStorage.getItem(STORAGE_KEY);
+      const rawV1 = localStorage.getItem('app_data_v1');
+      let data = rawV2 ? JSON.parse(rawV2) : (rawV1 ? JSON.parse(rawV1) : DEFAULT_DATA);
+
+      // Migrar estructura antigua si viene de v1
+      const today = getTodayISO();
+      if (Array.isArray(data.habits)) {
+        data.habits = data.habits.map(h => {
+          if (!h.logs) {
+            h.logs = h.done ? { [today]: true } : {};
+            delete h.done;
+          }
+          return h;
+        });
+      } else {
+        data.habits = DEFAULT_DATA.habits;
+      }
+
+      if (!Array.isArray(data.tasks)) data.tasks = [];
+      if (!data.notes || typeof data.notes !== 'object') {
+        data.notes = {
+          general: typeof data.note === 'string' ? data.note : '',
+          medidas: '',
+          ideas: ''
+        };
+      }
+      if (!Array.isArray(data.expenses)) data.expenses = [];
+
+      return data;
+    }
+
+    let currentUser = null;
+    let localData = loadInitialData();
+    let activeNoteTab = 'general';
+    let unsubscribeFirestore = null;
+    let syncTimeout = null;
+    let lastRenderedDate = getTodayISO();
+
+    /**************************************************************
+     * 4. ELEMENTOS DEL DOM
+     **************************************************************/
+    const btnLogin = document.getElementById('btnLogin');
+    const btnLogout = document.getElementById('btnLogout');
+    const userProfile = document.getElementById('userProfile');
+    const userAvatar = document.getElementById('userAvatar');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    const greetingEl = document.getElementById('greeting');
+    const clockEl = document.getElementById('clock');
+    const currentDateEl = document.getElementById('currentDate');
+
+    const habitsList = document.getElementById('habitsList');
+    const habitProgressBar = document.getElementById('habitProgressBar');
+    const habitProgressText = document.getElementById('habitProgressText');
+    const habitCountBadge = document.getElementById('habitCountBadge');
+    const formNewHabit = document.getElementById('formNewHabit');
+
+    const tasksList = document.getElementById('tasksList');
+    const taskCount = document.getElementById('taskCount');
+    const btnClearCompletedTasks = document.getElementById('btnClearCompletedTasks');
+    const formNewTask = document.getElementById('formNewTask');
+
+    const quickNotes = document.getElementById('quickNotes');
+    const noteSavedStatus = document.getElementById('noteSavedStatus');
+    const noteTabs = document.querySelectorAll('.note-tab');
+    const btnCopyNote = document.getElementById('btnCopyNote');
+    const btnCalcNote = document.getElementById('btnCalcNote');
+
+    const expensesList = document.getElementById('expensesList');
+    const financeBalance = document.getElementById('financeBalance');
+    const formNewExpense = document.getElementById('formNewExpense');
+    const btnClearFinance = document.getElementById('btnClearFinance');
+
+    const btnExport = document.getElementById('btnExport');
+    const inputImport = document.getElementById('inputImport');
+
+    /**************************************************************
+     * 5. RELOJ Y DETECCIÓN DE CAMBIO DE DÍA AUTOMÁTICO
+     **************************************************************/
+    function updateClock() {
+      const now = new Date();
+      clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      currentDateEl.textContent = now.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
+
+      const hour = now.getHours();
+      let greet = 'Buenos días';
+      if (hour >= 12 && hour < 19) greet = 'Buenas tardes';
+      else if (hour >= 19 || hour < 5) greet = 'Buenas noches';
+      greetingEl.textContent = currentUser ? `${greet}, ${currentUser.displayName.split(' ')[0]}` : greet;
+
+      // Si cruza la medianoche, refrescar los hábitos del nuevo día automáticamente
+      const currentISO = getTodayISO();
+      if (currentISO !== lastRenderedDate) {
+        lastRenderedDate = currentISO;
+        renderHabits();
+      }
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    /**************************************************************
+     * 6. FUNCIONES DE RENDERIZADO MODULARES
+     **************************************************************/
+    function renderHabits() {
+      const today = getTodayISO();
+      habitsList.innerHTML = '';
+
+      const totalHabits = localData.habits.length;
+      const completedHabits = localData.habits.filter(h => h.logs && h.logs[today]).length;
+      const progress = totalHabits > 0 ? Math.round((completedHabits / totalHabits) * 100) : 0;
+
+      habitProgressBar.style.width = `${progress}%`;
+      habitProgressText.textContent = `${progress}%`;
+      habitCountBadge.textContent = `${completedHabits}/${totalHabits}`;
+
+      localData.habits.forEach(h => {
+        if (!h.logs) h.logs = {};
+        const isDoneToday = !!h.logs[today];
+        const streak = calculateStreak(h.logs);
+
+        const item = document.createElement('div');
+        item.className = `flex items-center justify-between p-3 rounded-xl border transition cursor-pointer select-none ${
+          isDoneToday 
+            ? 'bg-indigo-950/50 border-indigo-500/60 text-indigo-100 shadow-sm' 
+            : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:border-slate-600'
+        }`;
+
+        item.innerHTML = `
+          <div class="flex items-center gap-2 overflow-hidden pr-1">
+            <span class="text-lg shrink-0">${escapeHTML(h.emoji)}</span>
+            <div class="min-w-0">
+              <div class="text-xs font-medium truncate ${isDoneToday ? 'line-through opacity-75' : ''}">${escapeHTML(h.name)}</div>
+              <div class="text-[10px] ${streak > 0 ? 'text-amber-400 font-semibold' : 'text-slate-500'}">🔥 ${streak}d</div>
+            </div>
+          </div>
+          <button data-id="${escapeHTML(h.id)}" class="btn-del-habit text-slate-500 hover:text-rose-400 p-1 text-xs shrink-0">✕</button>
+        `;
+
+        item.onclick = (e) => {
+          if (e.target.classList.contains('btn-del-habit')) return;
+          if (h.logs[today]) {
+            delete h.logs[today];
+          } else {
+            h.logs[today] = true;
+          }
+          renderHabits();
+          persistData();
+        };
+
+        item.querySelector('.btn-del-habit').onclick = (e) => {
+          e.stopPropagation();
+          localData.habits = localData.habits.filter(item => item.id !== h.id);
+          renderHabits();
+          persistData();
+        };
+
+        habitsList.appendChild(item);
+      });
+    }
+
+    function renderTasks() {
+      tasksList.innerHTML = '';
+      const pendingCount = localData.tasks.filter(t => !t.done).length;
+      const completedCount = localData.tasks.filter(t => t.done).length;
+      taskCount.textContent = pendingCount;
+
+      if (completedCount > 0) {
+        btnClearCompletedTasks.classList.remove('hidden');
+      } else {
+        btnClearCompletedTasks.classList.add('hidden');
+      }
+
+      // Ordenar: primero pendientes, luego prioridad alta, luego completadas
+      const sortedTasks = [...localData.tasks].sort((a, b) => {
+        if (a.done !== b.done) return a.done ? 1 : -1;
+        if (a.priority !== b.priority) return a.priority === 'high' ? -1 : 1;
+        return 0;
+      });
+
+      sortedTasks.forEach(t => {
+        const isHigh = t.priority === 'high';
+        const taskItem = document.createElement('div');
+        taskItem.className = `flex items-center justify-between p-2.5 rounded-xl border transition ${
+          t.done ? 'bg-slate-900/40 border-slate-800/60 opacity-60' : 'bg-slate-800/60 border-slate-700/60'
+        }`;
+
+        taskItem.innerHTML = `
+          <label class="flex items-center gap-2.5 flex-1 cursor-pointer min-w-0">
+            <input type="checkbox" ${t.done ? 'checked' : ''} class="w-4 h-4 rounded text-indigo-600 bg-slate-700 border-slate-600 focus:ring-0 shrink-0">
+            <span class="w-2 h-2 rounded-full shrink-0 ${isHigh ? 'bg-rose-500' : 'bg-sky-500'}" title="Prioridad ${isHigh ? 'Alta' : 'Normal'}"></span>
+            <span class="text-xs truncate ${t.done ? 'line-through text-slate-500' : 'text-slate-200'}">${escapeHTML(t.text)}</span>
+          </label>
+          <button class="text-slate-500 hover:text-rose-400 text-xs px-2 py-1 shrink-0">✕</button>
+        `;
+
+        taskItem.querySelector('input').onchange = () => {
+          t.done = !t.done;
+          renderTasks();
+          persistData();
+        };
+
+        taskItem.querySelector('button').onclick = () => {
+          localData.tasks = localData.tasks.filter(item => item.id !== t.id);
+          renderTasks();
+          persistData();
+        };
+
+        tasksList.appendChild(taskItem);
+      });
+    }
+
+    function renderNotes() {
+      noteTabs.forEach(btn => {
+        const isCurrent = btn.dataset.tab === activeNoteTab;
+        btn.className = `note-tab flex-1 py-1.5 text-xs font-medium rounded-lg transition ${
+          isCurrent ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+        }`;
+      });
+
+      if (document.activeElement !== quickNotes) {
+        quickNotes.value = (localData.notes && localData.notes[activeNoteTab]) || '';
+      }
+    }
+
+    function renderExpenses() {
+      expensesList.innerHTML = '';
+      let balance = 0;
+
+      localData.expenses.forEach(exp => {
+        const val = Number(exp.amount) || 0;
+        if (exp.type === 'in') balance += val;
+        else balance -= val;
+
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-800 text-xs';
+        row.innerHTML = `
+          <div class="flex items-center gap-2 truncate pr-2">
+            <span class="${exp.type === 'in' ? 'text-emerald-400' : 'text-rose-400'} font-bold">${exp.type === 'in' ? '▲' : '▼'}</span>
+            <span class="text-slate-300 truncate">${escapeHTML(exp.desc)}</span>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="font-mono font-semibold ${exp.type === 'in' ? 'text-emerald-400' : 'text-rose-400'}">
+              ${exp.type === 'in' ? '+' : '-'}$${val.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <button class="text-slate-500 hover:text-rose-400 px-1">✕</button>
+          </div>
+        `;
+
+        row.querySelector('button').onclick = () => {
+          localData.expenses = localData.expenses.filter(item => item.id !== exp.id);
+          renderExpenses();
+          persistData();
+        };
+
+        expensesList.appendChild(row);
+      });
+
+      financeBalance.textContent = `${balance < 0 ? '-' : ''}$${Math.abs(balance).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      financeBalance.className = `text-sm font-mono font-bold ${balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+    }
+
+    function renderAll() {
+      renderHabits();
+      renderTasks();
+      renderNotes();
+      renderExpenses();
+    }
+
+    /**************************************************************
+     * 7. GUARDADO SIN RE-RENDERIZAR (Performance Fix)
+     **************************************************************/
+    function persistData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(localData));
+
+      if (currentUser && db) {
+        noteSavedStatus.textContent = "Sincronizando...";
+        clearTimeout(syncTimeout);
+        syncTimeout = setTimeout(async () => {
+          try {
+            const userDocRef = doc(db, 'users', currentUser.uid);
+            await setDoc(userDocRef, localData);
+            noteSavedStatus.textContent = "En la nube ✓";
+          } catch (err) {
+            console.error("Error sincronizando:", err);
+            noteSavedStatus.textContent = "Guardado local";
+          }
+        }, 600);
+      } else {
+        noteSavedStatus.textContent = "Guardado local ✓";
+      }
+    }
+
+    /**************************************************************
+     * 8. EVENTOS DE INTERFAZ
+     **************************************************************/
+    formNewHabit.onsubmit = (e) => {
+      e.preventDefault();
+      const emoji = document.getElementById('inputHabitEmoji').value.trim() || '⚡';
+      const name = document.getElementById('inputHabitName').value.trim();
+      if (!name) return;
+      localData.habits.push({ id: Date.now().toString(), emoji, name, logs: {} });
+      document.getElementById('inputHabitName').value = '';
+      renderHabits();
+      persistData();
+    };
+
+    formNewTask.onsubmit = (e) => {
+      e.preventDefault();
+      const priority = document.getElementById('inputTaskPriority').value;
+      const text = document.getElementById('inputTaskText').value.trim();
+      if (!text) return;
+      localData.tasks.push({ id: Date.now().toString(), text, priority, done: false });
+      document.getElementById('inputTaskText').value = '';
+      renderTasks();
+      persistData();
+    };
+
+    btnClearCompletedTasks.onclick = () => {
+      localData.tasks = localData.tasks.filter(t => !t.done);
+      renderTasks();
+      persistData();
+    };
+
+    // Cambio de pestañas en el bloc de notas
+    noteTabs.forEach(btn => {
+      btn.onclick = () => {
+        activeNoteTab = btn.dataset.tab;
+        quickNotes.value = (localData.notes && localData.notes[activeNoteTab]) || '';
+        renderNotes();
+      };
+    });
+
+    // Al escribir en el bloc de notas NO re-renderizamos toda la página
+    quickNotes.addEventListener('input', (e) => {
+      if (!localData.notes) localData.notes = { general: '', medidas: '', ideas: '' };
+      localData.notes[activeNoteTab] = e.target.value;
+      persistData();
+    });
+
+    // Copiar contenido de la nota activa
+    btnCopyNote.onclick = async () => {
+      const text = quickNotes.value;
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
+      const original = btnCopyNote.textContent;
+      btnCopyNote.textContent = "¡Copiado!";
+      setTimeout(() => btnCopyNote.textContent = original, 1200);
+    };
+
+    // Evaluar expresión matemática en la línea donde está el cursor
+    btnCalcNote.onclick = () => {
+      const textarea = quickNotes;
+      const text = textarea.value;
+      if (!text.trim()) return;
+
+      const cursorPos = textarea.selectionStart;
+      const lines = text.split('\n');
+      let charCount = 0;
+      let targetLineIndex = lines.length - 1;
+
+      for (let i = 0; i < lines.length; i++) {
+        if (cursorPos <= charCount + lines[i].length) {
+          targetLineIndex = i;
+          break;
+        }
+        charCount += lines[i].length + 1;
+      }
+
+      const rawLine = lines[targetLineIndex].split('=')[0].trim();
+      // Extraer expresión numérica segura (ej. "Vidrio 1.20 * 0.80 * 350" -> "1.20 * 0.80 * 350")
+      const match = rawLine.match(/[\d.+\-*/()\s]+$/);
+      if (!match) return;
+
+      try {
+        const expr = match[0].trim();
+        if (!expr) return;
+        const result = Function(`"use strict"; return (${expr})`)();
+        if (typeof result === 'number' && isFinite(result)) {
+          const formatted = Number.isInteger(result) ? result : Number(result.toFixed(2));
+          lines[targetLineIndex] = `${rawLine} = ${formatted}`;
+          textarea.value = lines.join('\n');
+          localData.notes[activeNoteTab] = textarea.value;
+          persistData();
+        }
+      } catch (err) {
+        noteSavedStatus.textContent = "Expresión inválida";
+      }
+    };
+
+    // Caja rápida (Gastos / Ingresos)
+    formNewExpense.onsubmit = (e) => {
+      e.preventDefault();
+      const type = document.getElementById('inputExpenseType').value;
+      const desc = document.getElementById('inputExpenseDesc').value.trim();
+      const amount = parseFloat(document.getElementById('inputExpenseAmount').value);
+      if (!desc || isNaN(amount)) return;
+
+      localData.expenses.unshift({
+        id: Date.now().toString(),
+        type,
+        desc,
+        amount
+      });
+
+      document.getElementById('inputExpenseDesc').value = '';
+      document.getElementById('inputExpenseAmount').value = '';
+      renderExpenses();
+      persistData();
+    };
+
+    btnClearFinance.onclick = () => {
+      if (localData.expenses.length === 0) return;
+      localData.expenses = [];
+      renderExpenses();
+      persistData();
+    };
+
+    // Exportar e Importar JSON
+    btnExport.onclick = () => {
+      const blob = new Blob([JSON.stringify(localData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tablero_respaldo_${getTodayISO()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    inputImport.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const content = await file.text();
+        const parsed = JSON.parse(content);
+        if (parsed && typeof parsed === 'object') {
+          localData = {
+            habits: Array.isArray(parsed.habits) ? parsed.habits : DEFAULT_DATA.habits,
+            tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
+            notes: parsed.notes || { general: parsed.note || '', medidas: '', ideas: '' },
+            expenses: Array.isArray(parsed.expenses) ? parsed.expenses : []
+          };
+          renderAll();
+          persistData();
+        }
+      } catch (err) {
+        alert("Archivo JSON inválido.");
+      } finally {
+        e.target.value = '';
+      }
+    };
+
+    /**************************************************************
+     * 9. AUTENTICACIÓN GOOGLE & FIRESTORE REALTIME
+     **************************************************************/
+    if (!isFirebaseConfigured) {
+      btnLogin.title = "Configura tu firebaseConfig en el código para usar la nube";
+      btnLogin.classList.add('opacity-60');
+    }
+
+    btnLogin.onclick = async () => {
+      if (!isFirebaseConfigured || !auth) {
+        alert("Modo Local Activo: Para sincronizar con Google, reemplaza 'firebaseConfig' en el código con las llaves de tu proyecto de Firebase.");
+        return;
+      }
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (error) {
+        alert("Error al iniciar sesión: " + error.message);
+      }
+    };
+
+    btnLogout.onclick = () => {
+      if (auth) signOut(auth);
+    };
+
+    if (auth) {
+      onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        updateClock();
+
+        if (user) {
+          btnLogin.classList.add('hidden');
+          userProfile.classList.remove('hidden');
+          userAvatar.src = user.photoURL || '';
+          statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0';
+          statusText.textContent = 'Sincronizado';
+
+          const userDocRef = doc(db, 'users', user.uid);
+          if (unsubscribeFirestore) unsubscribeFirestore();
+
+          unsubscribeFirestore = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+              localData = { ...DEFAULT_DATA, ...docSnap.data() };
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(localData));
+              renderAll();
+            } else {
+              persistData();
+            }
+          }, (err) => {
+            console.warn("Conexión Firestore:", err);
+            statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0';
+            statusText.textContent = 'Offline (caché)';
+          });
+
+        } else {
+          if (unsubscribeFirestore) unsubscribeFirestore();
+          btnLogin.classList.remove('hidden');
+          userProfile.classList.add('hidden');
+          statusDot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0';
+          statusText.textContent = 'Modo local';
+        }
+      });
+    }
+
+    // Inicializar interfaz
+    renderAll();
+  </script>
+</body>
+</html>
